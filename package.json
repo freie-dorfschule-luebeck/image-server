@@ -1,0 +1,18 @@
+{
+  "name": "image-server",
+  "version": "1.0.0",
+  "description": "image server for fdl",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "felix caldeira",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1",
+    "fs": "0.0.1-security",
+    "path": "^0.12.7",
+    "utility": "github:sutekina/utility#master"
+  }
+}
