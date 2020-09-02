@@ -10,8 +10,12 @@
   "author": "felix caldeira",
   "license": "ISC",
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.17.1",
+    "express-fileupload": "^1.1.7-alpha.4",
     "fs": "0.0.1-security",
+    "lodash": "^4.17.19",
+    "morgan": "^1.10.0",
     "path": "^0.12.7",
     "utility": "github:sutekina/utility#master"
   }

@@ -5,6 +5,6 @@ note: this is still very beta and ill have to do some changes but im just using 
 
 ## usage:
 
-base-url/:folder/:file;
+/images/:folder/:file.jpg
 
 ### example: localhost/users/0.png
