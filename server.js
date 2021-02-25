@@ -24,15 +24,14 @@ try {
     })
     app.get('*', function (req, res, next) {
         let file = path.join(dir, req.path);
-        let extname = path.extname(file).slice(1);
-        if(!extname || !mime[extname]) next();
+        // let extname = path.extname(file).slice(1);
+        // if(!extname || !mime[extname]) next();
         let stream = fs.createReadStream(file);
         stream.on('open', function () {
             stream.pipe(res);
-
         });
         stream.on('error', function () {
-            next(new utility.errorHandling.SutekinaStatusError(404))
+            res.sendFile(path.join(dir, '/users/0.svg'));
         });
     });
 } catch (err) {
