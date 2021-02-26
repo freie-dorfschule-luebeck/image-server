@@ -1,13 +1,13 @@
 const express = require('express');
 const app = express();
-app.listen(3000);
+app.listen(4848);
 
 //next time i do shit for this i have to add file upload x3
 
 const morgan = require("morgan");
 app.use(morgan("dev"));
 app.disable('x-powered-by');
-app.set('etag', 'strong');
+app.set('etag', false);
 
 const path = require('path');
 const fs = require('fs');
