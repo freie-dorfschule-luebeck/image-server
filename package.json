@@ -16,6 +16,7 @@
     "fs": "0.0.1-security",
     "lodash": "^4.17.19",
     "morgan": "^1.10.0",
+    "mysql2": "^2.2.5",
     "nodemon": "^2.0.4",
     "path": "^0.12.7",
     "utility": "github:sutekina/utility#master"
