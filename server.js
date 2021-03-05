@@ -12,7 +12,7 @@ app.set('etag', false);
 
 const fs = require('fs');
 const path = require('path');
-const dir = path.join(__dirname, 'public');
+const dir = path.join(__dirname, 'publicold');
 
 const mysql = require("mysql2");
 const db_config = {
