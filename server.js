@@ -8,11 +8,12 @@ const app = express(); app.listen(config.services.image_server.port, () => conso
 const morgan = require("morgan");
 app.use(morgan("dev"));
 app.disable('x-powered-by');
-app.set('etag', false);
+app.set('etag', "strong");
 
 const fs = require('fs');
 const path = require('path');
 const dir = path.join(__dirname, 'publicold');
+const newdir = path.join(__dirname, 'public');
 
 const mysql = require("mysql2");
 const db_config = {
@@ -58,7 +59,29 @@ try {
     app.get("/:type/:type_id", (req, res, next) => {
         next();
     });
+    app.get("/:path", (req, res, next) => {
+        if(!req.query.new) return next();
+        let file = path.join(newdir, req.params.path);
+        if(!path.extname(file).slice(1)) return next();
+    
+        let image_id = req.params.path.split('.')[0];
+        let file_format = req.params.path.split('.')[1];
 
+        mysql.connection.execute(`SELECT * FROM images WHERE image_id = ? AND hidden = 0`, [image_id], (error, result) => {
+            if(error) return next(error);
+            if(!result[0]) return next();
+            if(file_format !== result[0].file_format) return res.redirect(301, `/${image_id}.${result[0].file_format}?new=true`);
+
+            let stream = fs.createReadStream(file);
+            stream.on('open', function () {
+                stream.pipe(res);
+            });
+            stream.on('error', function () {
+                stream.close();
+                next();
+            });
+        });
+    });
     app.get('*', function (req, res, next) {
         let file = path.join(dir, req.path);
         // let extname = path.extname(file).slice(1);
