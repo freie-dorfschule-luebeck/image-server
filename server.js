@@ -51,13 +51,26 @@ try {
         res.set('Content-Type', 'application/json');
         body = {
             code: 200,
-            message: "the image-server is working ^_^"
+            message: "the image-server is working ^w^"
         };
         res.statusMessage = utility.errorHandling.ErrorStatusCodes[body.code];
         res.status(body.code).send(body)
     })
     app.get("/:type/:type_id", (req, res, next) => {
         next();
+    });
+    app.get("/404.banner", (req, res, next) => {
+        if(!req.query.new) return next();
+        let file = path.join(newdir, "banner.png");
+
+        let stream = fs.createReadStream(file);
+        stream.on('open', function () {
+            stream.pipe(res);
+        });
+        stream.on('error', function () {
+            stream.close();
+            next();
+        });
     });
     app.get("/:path", (req, res, next) => {
         if(!req.query.new) return next();
