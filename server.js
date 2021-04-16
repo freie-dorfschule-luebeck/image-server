@@ -57,7 +57,16 @@ try {
         res.status(body.code).send(body)
     })
     app.get("/:type/:type_id", (req, res, next) => {
-        next();
+        if(!req.query.new) return next();
+
+        let type = req.params.type;
+        let type_id = req.params.type_id;
+
+        mysql.connection.execute(`SELECT * FROM images WHERE type = ? AND type_id = ? AND hidden = 0 ORDER BY image_id DESC`, [type, type_id], (error, result) => {
+            if(error) return next(error);
+            if(!result[0]) return next();
+            res.redirect(302, `/${result[0].image_id}.${result[0].file_format}?new=true`);
+        });
     });
     app.get("/404.banner", (req, res, next) => {
         if(!req.query.new) return next();
