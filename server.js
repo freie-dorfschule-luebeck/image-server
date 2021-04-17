@@ -2,6 +2,7 @@ const config = require("../nashi/config.json");
 const constants = require("./constants");
 const utility = require("utility");
 const express = require('express');
+const expressSession = require('express-session');
 const sharp = require('sharp');
 const app = express(); app.listen(config.services.image_server.port, () => console.log(config.services.image_server.displayname + ' running on ' + config.services.image_server.port));
 
@@ -48,6 +49,41 @@ handleDisconnect = () => {
 
 handleDisconnect();
 
+const MySQLStore = require('express-mysql-session')(expressSession);
+
+let session_config = Object.assign(db_config, {
+    clearExpired: true,
+    checkExpirationInterval: 900000,
+    expiration: 86400000,
+    createDatabaseTable: true,
+    connectionLimit: 2,
+    schema: {
+        tableName: 'user_sessions',
+        columnNames: {
+            session_id: 'session_id',
+            expires: 'expires',
+            data: 'data'
+        }
+    }
+});
+const sessionStore = new MySQLStore(session_config);
+
+app.use(expressSession({
+    key: config.cookies.session.name,
+    secret: config.cookies.session.secret,
+    store: sessionStore,
+    saveUninitialized: false,
+    resave: false,
+    // proxy: true,
+    cookie: {
+        domain: config.services.nashi.domain,
+        maxAge: 315569259747,
+        httpOnly: true, 
+        sameSite: true,
+        secure: false //in production set https ig
+    } 
+}));
+
 try {
     app.all('/', (req, res, next) => {
         res.set('Content-Type', 'application/json');
@@ -55,6 +91,7 @@ try {
             code: 200,
             message: "the image-server is working ^w^"
         };
+        if(req.session.nick) body.message = "welcome back " + req.session.nick;
         res.statusMessage = utility.errorHandling.ErrorStatusCodes[body.code];
         res.status(body.code).send(body)
     })
@@ -91,30 +128,11 @@ try {
             sharp(file).resize(file_size).toBuffer().then(data => res.end(data)).catch(err => next(err));
         });
     });
-
-
-
-
-    // remove once stable uses new method for users, this is somewhat insecure.
-    app.get('*', function (req, res, next) {
-        let file = path.join(dir, req.path);
-        // let extname = path.extname(file).slice(1);
-        // if(!extname || !mime[extname]) next();
-        let stream = fs.createReadStream(file);
-        stream.on('open', function () {
-            stream.pipe(res);
-        });
-        stream.on('error', function () {
-           stream.close();
-           next();
-        });
-    });
 } catch (err) {
     console.log(err)
     app.use((req, res, next) => next(err));
 }
 
-// 
 app.use((req, res, next) => res.status(404).sendFile(path.join(dir, '/0.svg')));
 
 app.use((err, req, res, next) => {
