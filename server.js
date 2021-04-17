@@ -1,6 +1,8 @@
 const config = require("../nashi/config.json");
+const constants = require("./constants");
 const utility = require("utility");
 const express = require('express');
+const sharp = require('sharp');
 const app = express(); app.listen(config.services.image_server.port, () => console.log(config.services.image_server.displayname + ' running on ' + config.services.image_server.port));
 
 //next time i do shit for this i have to add file upload x3
@@ -56,6 +58,11 @@ try {
         res.statusMessage = utility.errorHandling.ErrorStatusCodes[body.code];
         res.status(body.code).send(body)
     })
+    app.get("/404.banner", (req, res, next) => {
+        if(!req.query.new) return next();
+        let file = path.join(newdir, "banner.png");
+        res.sendFile(file);
+    });
     app.get("/:type/:type_id", (req, res, next) => {
         if(!req.query.new) return next();
 
@@ -65,20 +72,7 @@ try {
         mysql.connection.execute(`SELECT * FROM images WHERE type = ? AND type_id = ? AND hidden = 0 ORDER BY image_id DESC`, [type, type_id], (error, result) => {
             if(error) return next(error);
             if(!result[0]) return next();
-            res.redirect(302, `/${result[0].image_id}.${result[0].file_format}?new=true`);
-        });
-    });
-    app.get("/404.banner", (req, res, next) => {
-        if(!req.query.new) return next();
-        let file = path.join(newdir, "banner.png");
-
-        let stream = fs.createReadStream(file);
-        stream.on('open', function () {
-            stream.pipe(res);
-        });
-        stream.on('error', function () {
-            stream.close();
-            next();
+            res.redirect(302, `/${result[0].image_id}.${result[0].file_format}?new=true&size=${req.query.size || "max"}`);
         });
     });
     app.get("/:path", (req, res, next) => {
@@ -89,21 +83,19 @@ try {
         let image_id = req.params.path.split('.')[0];
         let file_format = req.params.path.split('.')[1];
 
+        let file_size = constants.sizes[req.query.size || "max"] || constants.sizes["max"];
         mysql.connection.execute(`SELECT * FROM images WHERE image_id = ? AND hidden = 0`, [image_id], (error, result) => {
             if(error) return next(error);
             if(!result[0]) return next();
             if(file_format !== result[0].file_format) return res.redirect(301, `/${image_id}.${result[0].file_format}?new=true`);
-
-            let stream = fs.createReadStream(file);
-            stream.on('open', function () {
-                stream.pipe(res);
-            });
-            stream.on('error', function () {
-                stream.close();
-                next();
-            });
+            sharp(file).resize(file_size).toBuffer().then(data => res.end(data)).catch(err => next(err));
         });
     });
+
+
+
+
+    // remove once stable uses new method for users, this is somewhat insecure.
     app.get('*', function (req, res, next) {
         let file = path.join(dir, req.path);
         // let extname = path.extname(file).slice(1);

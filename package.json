@@ -19,6 +19,7 @@
     "mysql2": "^2.2.5",
     "nodemon": "^2.0.4",
     "path": "^0.12.7",
+    "sharp": "^0.28.1",
     "utility": "github:sutekina/utility#master"
   }
 }
