@@ -115,14 +115,14 @@ try {
         });
     });
     app.post("/:type/:type_id", (req, res, next) => {
+        // IS USER LOGGED IN
+        if(!req.session.nick || !req.session.user_id) return next({
+            message: "Du bist nicht angemeldet.",
+            status: 401,
+            forward: true
+        });
+        // USER PROFILE PICTURE UPLOAD
         if(req.params.type === "user") {
-            // IS USER LOGGED IN
-            if(!req.session.nick || !req.session.user_id) return next({
-                message: "Du bist nicht angemeldet.",
-                status: 401,
-                forward: true
-            });
-
             // IS THE TYPE_ID DIFFERENT FROM THE USER'S ID
             if(req.session.user_id != req.params.type_id) return next({
                 message: "Du kannst keine Profilbilder für andere Benutzer hochladen!",
@@ -132,12 +132,14 @@ try {
             
             getImageID(req, 'png').then((image_id) => {
                 fs.writeFile(path.join(newdir, image_id + ".png"), req.body.file.replace(/^data:image\/png;base64,/, ""), 'base64', (err) => {
+                    // SOMETHING WENT WRONG WITH FILESYSTEM, NO PERMISSION?
                     if(err) {
                         return next({...err, ...{forward: true}});
                     }
                     res.redirect(`${config.services.nashi.domain}${req.session.redir || ""}`);
                 });
-            }).catch((err) => {
+            }).catch((err) => { 
+                // SOMETHING WENT WRONG WITH MYSQL
                 return next({...err, ...{forward: true}})
             });
         }
