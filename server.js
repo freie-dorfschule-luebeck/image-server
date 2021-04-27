@@ -4,13 +4,14 @@ const utility = require("../nashi/utility");
 const express = require('express');
 const expressSession = require('express-session');
 const sharp = require('sharp');
-const multer = require("multer");
+const cors = require("cors");
 const app = express(); app.listen(config.services.image_server.port, () => console.log(config.services.image_server.displayname + ' running on ' + config.services.image_server.port));
 
 //next time i do shit for this i have to add file upload x3
 
 const morgan = require("morgan");
 app.use(morgan("dev"));
+app.use(cors());
 app.disable('x-powered-by');
 app.set('etag', "strong");
 
@@ -28,8 +29,6 @@ const db_config = {
     timezone: config.mysql.timezone,
     insecureAuth : true
 }
-
-let connection;
 
 handleDisconnect = () => {
     mysql.connection = mysql.createConnection(db_config);
@@ -49,28 +48,6 @@ handleDisconnect = () => {
 }
 
 handleDisconnect();
-
-
-const storage = multer.diskStorage({
-    destination: (req, file, callback) => {
-        callback(null, newdir);
-    },
-    filename: (req, file, callback) => {
-        mysql.connection.execute(`INSERT INTO ringo.images (user_id, type_id, type, file_format, hidden, created_at) VALUES (?, ?, ?, ?, "0", UTC_TIMESTAMP())`, [req.session.user_id, req.session.user_id, "user", file.originalname.split('.').pop()], (error, result) => {
-            if(error) return callback(new utility.errorHandling.SutekinaError(error.message, 500));
-            return callback(null, `${result.insertId}.${file.originalname.split('.').pop()}`);
-        });
-    }
-})
-
-const upload = multer({
-    storage: storage,
-    limits: {
-        fields: 10,
-        fileSize: 1024 * 1024 * 1024, // 1GB, before this is possible nginx will block.
-        files: 1        
-    }
-});
 
 const MySQLStore = require('express-mysql-session')(expressSession);
 
@@ -107,6 +84,11 @@ app.use(expressSession({
     } 
 }));
 
+app.use(express.urlencoded({
+    extended: true,
+    limit: '500kb'
+}));
+
 try {
     app.all('/', (req, res, next) => {
         res.set('Content-Type', 'application/json');
@@ -133,50 +115,32 @@ try {
         });
     });
     app.post("/:type/:type_id", (req, res, next) => {
-        if(!req.session.nick) {
-            req.session.error = {
+        if(req.params.type === "user") {
+            // IS USER LOGGED IN
+            if(!req.session.nick || !req.session.user_id) return next({
                 message: "Du bist nicht angemeldet.",
-                status: 401
-            };
-            return res.redirect(`${config.services.nashi.domain}/error`);
-        }
-        upload.single("file")(req, res, (err) => {
-            if (err) {
-                req.session.error = {
-                    message: err.message,
-                    status: err.status || 500
-                };
-                console.log(err);
-                res.redirect(`${config.services.nashi.domain}${req.session.redir || "/error"}`);
-            } else {
-                if(req.file.size > (1 * 1024 * 1024)) {
-                    fs.readFile(req.file.path, (err, data) => {
-                        if(err) {
-                            req.session.error = {
-                                message: err.message,
-                                status: err.status || 500
-                            };
-                            console.log(err);
-                            res.redirect(`${config.services.nashi.domain}${req.session.redir || "/error"}`);
-                        } else {
-                            sharp(data, { failOnError: false, withoutEnlargement: true }).resize(2000).toFile(req.file.path).then(info => {
-                                console.log(info);
-                                res.redirect(`${config.services.nashi.domain}${req.session.redir || ""}`);
-                            }).catch(err => {
-                                req.session.error = {
-                                    message: err.message,
-                                    status: err.status || 500
-                                };
-                                console.log(err);
-                                res.redirect(`${config.services.nashi.domain}${req.session.redir || "/error"}`);
-                            });
-                        }
-                    });
-                } else {
+                status: 401,
+                forward: true
+            });
+
+            // IS THE TYPE_ID DIFFERENT FROM THE USER'S ID
+            if(req.session.user_id != req.params.type_id) return next({
+                message: "Du kannst keine Profilbilder für andere Benutzer hochladen!",
+                status: 403,
+                forward: true
+            });
+            
+            getImageID(req, 'png').then((image_id) => {
+                fs.writeFile(path.join(newdir, image_id + ".png"), req.body.file.replace(/^data:image\/png;base64,/, ""), 'base64', (err) => {
+                    if(err) {
+                        return next({...err, ...{forward: true}});
+                    }
                     res.redirect(`${config.services.nashi.domain}${req.session.redir || ""}`);
-                }
-            }
-        });
+                });
+            }).catch((err) => {
+                return next({...err, ...{forward: true}})
+            });
+        }
     });
     app.get("/:path", (req, res, next) => {
         let file = path.join(newdir, req.params.path);
@@ -201,11 +165,35 @@ try {
 app.use((req, res, next) => res.status(404).sendFile(path.join(dir, '/0.svg')));
 
 app.use((err, req, res, next) => {
-    res.set('Content-Type', 'application/json');
     body = {
         code: err.status || err.statusCode || 500,
         message: err.message || err
     };
-    res.statusMessage = utility.errorHandling.ErrorStatusCodes[body.code];
-    res.status(body.code).send(body)
+    
+    if(body.code === 413) {
+        err.forward = true;
+        body.message = "Ihr Bild ist zu groß!"
+    }
+
+    if(err.forward) {
+        req.session.error = {
+            message: body.message,
+            status: body.code
+        };
+        return res.redirect(`${config.services.nashi.domain}/error`);
+    } else {
+        res.set('Content-Type', 'application/json');
+        res.statusMessage = utility.errorHandling.ErrorStatusCodes[body.code];
+        res.status(body.code).send(body);
+    }
 });
+
+
+const getImageID = (req, fileFormat) => {
+    return new Promise((resolve, reject) => {
+        mysql.connection.execute(`INSERT INTO ringo.images (user_id, type_id, type, file_format, hidden, created_at) VALUES (?, ?, ?, ?, "0", UTC_TIMESTAMP())`, [req.session.user_id, req.params.type_id, req.params.type, fileFormat], (error, result) => {
+            if(error) return reject(new utility.errorHandling.SutekinaError(error.message, 500));
+            return resolve(result.insertId);
+        });
+    })
+}
