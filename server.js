@@ -183,11 +183,11 @@ app.use((err, req, res, next) => {
             status: body.code
         };
         return res.redirect(`${config.services.nashi.domain}/error`);
-    } else {
-        res.set('Content-Type', 'application/json');
-        res.statusMessage = utility.errorHandling.ErrorStatusCodes[body.code];
-        res.status(body.code).send(body);
     }
+
+    res.set('Content-Type', 'application/json');
+    res.statusMessage = utility.errorHandling.ErrorStatusCodes[body.code];
+    res.status(body.code).send(body);
 });
 
 
